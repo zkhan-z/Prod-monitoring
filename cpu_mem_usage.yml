@@ -1,0 +1,35 @@
+---
+- name: Monitor production servers
+  hosts: all
+  gather_facts: false
+  vars:
+    interval: 60 # interval in seconds between checks
+    critical_threshold: 90
+    warning_threshold: 80
+  tasks:
+  - name: Check CPU usage
+    shell: "top -b -n1 | awk '{print $9}' | tail -n +8 | awk '{s+=$1} END {print s}'"
+    register: cpu_usage
+  - name: Check memory usage
+    shell: "free | awk 'FNR == 2 {print $3/($3+$4)*100}'"
+    register: mem_usage
+  - name: Check disk usage
+    shell: "df -h | awk '$NF==\"/\"{printf \"%d\", $5}'"
+    register: disk_usage
+  - name: Send alert if usage exceeds critical threshold
+    local_action:
+      module: slack
+      token: "{{ slack_token }}"
+      channel: "#critical-alerts"
+      msg: "CRITICAL Usage alert on {{ ansible_hostname }}: CPU: {{ cpu_usage.stdout }}%, Memory: {{ mem_usage.stdout }}%, Disk: {{ disk_usage.stdout }}%"
+    when: cpu_usage.stdout > critical_threshold or mem_usage.stdout > critical_threshold or disk_usage.stdout > critical_threshold
+  - name: Send alert if usage exceeds warning threshold
+    local_action:
+      module: slack
+      token: "{{ slack_token }}"
+      channel: "#warning-alerts"
+      msg: "WARNING Usage alert on {{ ansible_hostname }}: CPU: {{ cpu_usage.stdout }}%, Memory: {{ mem_usage.stdout }}%, Disk: {{ disk_usage.stdout }}%"
+    when: (cpu_usage.stdout > warning_threshold or mem_usage.stdout > warning_threshold or disk_usage.stdout > warning_threshold) and (cpu_usage.stdout <= critical_threshold or mem_usage.stdout <= critical_threshold or disk_usage.stdout <= critical_threshold)
+  - name: Sleep for specified interval
+    pause:
+      seconds: "{{ interval }}"
