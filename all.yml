@@ -1,0 +1,5 @@
+# group_vars/all.yml
+slack_token: YOUR_SLACK_TOKEN
+interval: 60
+critical_threshold: 90
+warning_threshold: 80
